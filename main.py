@@ -3,6 +3,9 @@ from model.loss import CrossEntropyWithLogits
 from data.dataloader import create_dataset
 import torch
 from torch.optim import Adam
+from torch.cuda.amp import autocast as autocast
+from torch.cuda.amp import GradScaler
+
 from tqdm import tqdm
 import time
 
@@ -24,18 +27,43 @@ save_step = 400
 val_loss = -1
 step_now = 0
 total_loss = 0
+scaler = GradScaler()
 torch.cuda.synchronize()
 start = time.time()
+
+# for i in range(num_epoches):
+#     with tqdm(train_dataloader) as tl:
+#         for (img, mask) in tl:
+#             step_now += 1
+#             optimizer.zero_grad()
+#             pred = model(img.to(device))
+#             loss = criterion(pred, mask.to(device))
+#             loss.backward()
+#             optimizer.step()
+#             loss_cpu = loss.cpu().item()
+#             total_loss += loss_cpu
+#             if step_now % save_step == 0:
+#                 val_loss = 0
+#                 torch.save(model.state_dict(), "./result/step=%d" % (step_now))
+#                 for (img_val, mask_val) in val_dataloader:
+#                     pred = model(img_val.to(device))
+#                     loss = criterion(pred, mask_val.to(device))
+#                     val_loss += loss.cpu().item()
+#             tl.set_postfix(loss=loss_cpu, avg_loss=total_loss /
+#                        step_now, val_loss=val_loss/len(val_dataloader))
 
 for i in range(num_epoches):
     with tqdm(train_dataloader) as tl:
         for (img, mask) in tl:
             step_now += 1
             optimizer.zero_grad()
-            pred = model(img.to(device))
-            loss = criterion(pred, mask.to(device))
-            loss.backward()
-            optimizer.step()
+            with autocast():
+                pred = model(img.to(device))
+                loss = criterion(pred, mask.to(device))
+            
+            scaler.scale(loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
             loss_cpu = loss.cpu().item()
             total_loss += loss_cpu
             if step_now % save_step == 0:
