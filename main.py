@@ -78,5 +78,5 @@ for i in range(num_epoches):
 
 torch.cuda.synchronize()
 end = time.time()
-print("training time: ", end - start)
+print("training time per step(ms): ", (end - start)*1000 / (num_epoches*2))
 torch.save(model.state_dict(), "./result/step=all")
